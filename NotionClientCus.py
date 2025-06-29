@@ -8,16 +8,21 @@ import logging
 from pprint import pprint
 import json
 
+from logger_config import setup_logger
+
 from NotionFileUploader import NotionFileUploader
 
 # 仅本地开发时加载 .env 文件（Docker 环境会跳过）
 if os.getenv("ENV") != "production":
     load_dotenv()  # 默认加载 .env 文件
 
+setup_logger()  # 初始化 logging 配置
+logger = logging.getLogger(__name__)
 
 class NotionClientCus:
-    def __init__(self, database_id, token):
+    def __init__(self, database_id, base_page_id, token):
         self.database_id = database_id
+        self.base_page_id = base_page_id
         self.token = token
         self.client: Client = Client(auth=token)
 
@@ -71,11 +76,36 @@ class NotionClientCus:
         }
         self.create_page(properties)
 
+    def create_database(self, 
+                        emoji = "🍰", 
+                        title: str = "New Database", 
+                        properties: Dict[str, Any]= 
+                        {
+                            "Name": {"title": {}},
+                            "Files": {
+                                "type": "files",
+                                "files": {}
+                            },
+                        }) -> str:
+        """创建一个新的数据库"""
+        try:
+            response = self.client.databases.create(
+                parent={"type": "page_id", "page_id": self.base_page_id},
+                icon={"type": "emoji", "emoji": emoji},
+                title=[{"type": "text", "text": {"content": title}}],
+                properties=properties
+            )
+            return response["id"]
+        except Exception as e:
+            logging.error(f"Failed to create database: {e}")
+            raise
+
 def notion_para_get():
 
     database_id = os.getenv("NOTION_DATABASE_ID")
+    base_page_id = os.getenv("NOTION_BASE_PAGE_ID")
     token = os.getenv("NOTION_TOKEN")
-    return database_id, token
+    return database_id, base_page_id, token
 
 def main():
     # 使用示例
@@ -106,8 +136,34 @@ def main():
     except Exception as e:
         print(f"上传失败: {e}")
 
+def database_create_test():
+    database_id, base_page_id, token = notion_para_get()
+    print(f"Notion Database ID: {database_id}")
+    print(f"Notion Base Page ID: {base_page_id}")
+
+
+    notionclient = NotionClientCus(database_id, base_page_id, token)
+
+    properties = {
+        "Name": {"title": {}},
+        "Files": {
+            "type": "files",
+            "files": {}
+        }
+    }
+
+    try:
+        new_database_id = notionclient.create_database(
+            title="New Database",
+            properties=properties
+        )
+        print(f"New database created with ID: {new_database_id}")
+    except Exception as e:
+        print(f"Failed to create database: {e}")
+
 if __name__ == "__main__":
-    main()
+    # main()
+    database_create_test()
 
 
     
